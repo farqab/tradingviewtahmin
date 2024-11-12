@@ -1,6 +1,6 @@
-pip install streamlit
-pip install pandas
-pip install numpy
-pip install binance
-pip install ta
-pip install aiohttp
+streamlit==1.25.0
+pandas==1.5.3
+numpy==1.24.3
+binance-connector==1.8.1
+ta-lib==0.4.0
+aiohttp==3.8.5
