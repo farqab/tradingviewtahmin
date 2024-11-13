@@ -1,7 +1,0 @@
-[server]
-enableCORS = true
-enableXsrfProtection = false
-
-[browser]
-serverAddress = "tradingviewtahmin.streamlit.app"
-gatherUsageStats = false
