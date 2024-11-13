@@ -1,4 +1,9 @@
 import streamlit as st
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Sayfa başlığı
+st.set_page_config(page_title="Benim Web Sitem", page_icon="✨")
 
 # Başlık
 st.title("Benim Web Sitem")
@@ -20,9 +25,6 @@ if st.button('Gönder'):
     st.write(f"Merhaba, {name}! Yaşınız: {age}")
 
 # Grafik
-import matplotlib.pyplot as plt
-import numpy as np
-
 x = np.linspace(0, 10, 100)
 y = np.sin(x)
 
