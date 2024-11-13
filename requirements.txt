@@ -5,6 +5,5 @@ aiohttp==3.10.10
 matplotlib>=3.7.0
 numpy>=1.24.0
 websockets==11.0.3
-yfinance==0.2.49
-futures==3.4.0
+yfinance==0.1.70
 python-binance
