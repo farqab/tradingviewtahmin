@@ -1,39 +1,42 @@
 import streamlit as st
-import matplotlib.pyplot as plt
-import numpy as np
+import websockets
+import asyncio
+import json
 
+# WebSocket URI for Binance Futures
+BINANCE_WS_URI = "wss://fstream.binance.com/ws/!miniTicker@arr"
 
-# Sayfa başlığı
-st.set_page_config(page_title="Benim Web Sitem", page_icon="✨")
+# Function to fetch data from WebSocket
+async def get_binance_futures_data():
+    try:
+        async with websockets.connect(BINANCE_WS_URI) as websocket:
+            while True:
+                message = await websocket.recv()
+                data = json.loads(message)
+                yield data  # Async generator yielding data
+    except Exception as e:
+        print(f"Error: {e}")
+        await asyncio.sleep(5)  # Retry after 5 seconds
 
-# Başlık
-st.title("Benim Web Sitem")
+# Streamlit UI
+st.title("Vadeli Coinler Streamlit Uygulaması")
 
-# Alt başlık
-st.header("Streamlit ile yapılmış basit bir web sitesi")
+# Display the live data from WebSocket
+st.subheader("Vadeli Coin Verisi")
 
-# Metin
-st.write("""
-    Merhaba! Bu, Streamlit kullanarak Python ile yapılmış bir web sitesi tasarımı örneğidir.
-    Burada, farklı işlevsellikler ekleyebilirsiniz, örneğin grafikler, kullanıcı girdileri ve daha fazlası.
-""")
+# Set up a container to display the data
+container = st.empty()
 
-# Kullanıcıdan bilgi alma
-name = st.text_input("Adınızı girin:", "")
-age = st.number_input("Yaşınızı girin:", min_value=0, max_value=100, value=25)
+# Function to display futures data in Streamlit
+async def display_futures_data():
+    async for data in get_binance_futures_data():
+        container.json(data)  # Display the live data as JSON
+        await asyncio.sleep(1)  # Pause briefly before next update
 
-if st.button('Gönder'):
-    st.write(f"Merhaba, {name}! Yaşınız: {age}")
+# Run the async WebSocket task
+def run_display():
+    asyncio.run(display_futures_data())  # Run the async function
 
-# Grafik
-x = np.linspace(0, 10, 100)
-y = np.sin(x)
-
-fig, ax = plt.subplots()
-ax.plot(x, y, label='Sin(x)')
-ax.set_xlabel('X ekseni')
-ax.set_ylabel('Y ekseni')
-ax.set_title('Matplotlib ile Grafik')
-ax.legend()
-
-st.pyplot(fig)
+# Run the display function
+if __name__ == "__main__":
+    run_display()
