@@ -2,15 +2,6 @@ import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
 
-st.set_page_config(
-    page_title="Benim Web Sitem",
-    page_icon="🌟",
-    menu_items={
-        'Get Help': None,
-        'Report a bug': None,
-        'About': None
-    }
-)
 
 # Sayfa başlığı
 st.set_page_config(page_title="Benim Web Sitem", page_icon="✨")
