@@ -7,9 +7,9 @@ import asyncio
 import aiohttp
 import concurrent.futures
 
-# Binance API anahtarlarınızı girin
-api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
-api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
+# Binance API anahtarlarını Streamlit secrets'tan al
+api_key = st.secrets["api"]["api_key"]
+api_secret = st.secrets["api"]["api_secret"]
 
 client = Client(api_key, api_secret)
 
