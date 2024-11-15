@@ -12,9 +12,8 @@ from newsapi import NewsApiClient
 import tweepy
 
 
-# Binance API anahtarlarınızı girin
-api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
-api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
+api_key = os.getenv('API_KEY')
+api_secret = os.getenv('API_SECRET')
 
 client = Client(api_key, api_secret)
 
