@@ -34,7 +34,7 @@ with st.sidebar:
     
     # Genişletilmiş zaman aralığı seçimi
     # period_options kısmını değiştiriyoruz
-period_options = {
+    period_options = {
     # Dakikalık
     "1 Dakika": "1m",
     "5 Dakika": "5m",
