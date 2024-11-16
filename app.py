@@ -1,84 +1,29 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yfinance as yf
 import ta
-from datetime import datetime, timedelta
+from datetime import datetime
 import plotly.graph_objects as go
 
-# Cache fonksiyonu ekleyelim
-@st.cache_data(ttl=300)  # 5 dakika cache
+# Cache fonksiyonu
+@st.cache_data(ttl=300)  # 5 dakika önbellek
 def get_crypto_data(symbol, period):
-    """Kripto para verilerini çekme fonksiyonu"""
+    """Kripto para verilerini çekme fonksiyonu."""
     try:
         ticker = yf.Ticker(f"{symbol}-USD")
         data = ticker.history(period=period)
-        return data if not data.empty else None
+        if not data.empty:
+            data['Date'] = data.index
+            return data
+        else:
+            return None
     except Exception as e:
         st.error(f"Veri çekilirken hata oluştu: {str(e)}")
         return None
 
-# Sayfanın genel ayarlarını yapılandırma
-st.set_page_config(
-    page_title="Kripto Tarayıcı",
-    page_icon="📊",
-    layout="wide"
-)
-
-# Ana başlık
-st.title("📊 Kripto Para Teknik Analiz Platformu")
-
-# Sidebar oluşturma
-with st.sidebar:
-    st.header("Filtre Ayarları")
-    
-    # Genişletilmiş zaman aralığı seçimi
-    # period_options kısmını değiştiriyoruz
-    period_options = {
-    # Dakikalık
-    "1 Dakika": "1m",
-    "5 Dakika": "5m",
-    "15 Dakika": "15m",
-    "30 Dakika": "30m",
-    # Saatlik
-    "1 Saat": "1h",
-    "2 Saat": "2h",
-    "4 Saat": "4h",
-    "6 Saat": "6h",
-    "12 Saat": "12h",
-    # Günlük ve üzeri
-    "1 Gün": "1d",
-    "3 Gün": "3d",
-    "1 Hafta": "7d",
-    "2 Hafta": "14d",
-    "1 Ay": "1mo",
-    "3 Ay": "3mo",
-    "6 Ay": "6mo",
-    "1 Yıl": "1y"
-}
-    selected_period = st.selectbox("Zaman Aralığı", list(period_options.keys()))
-
-    # Teknik gösterge filtreleri
-    st.subheader("Teknik Göstergeler")
-
-    # RSI ayarları
-    use_rsi = st.checkbox("RSI Filtresi", True)
-    if use_rsi:
-        rsi_lower = st.slider("RSI Alt Limit", 0, 100, 30)
-        rsi_upper = st.slider("RSI Üst Limit", 0, 100, 70)
-
-    # EMA ayarları
-    use_ema = st.checkbox("EMA Filtresi", True)
-    if use_ema:
-        ema_period = st.selectbox("EMA Periyodu", [9, 20, 50, 200], index=1)
-    else:
-        ema_period = 20  # Varsayılan değer
-
-    # MACD ayarları
-    use_macd = st.checkbox("MACD Filtresi", True)
-
-def calculate_indicators(df, ema_period):  # ema_period parametresi eklendi
-    """Teknik göstergeleri hesaplama"""
+# Teknik göstergeleri hesaplama
+def calculate_indicators(df, ema_period):
+    """Teknik göstergeleri hesaplama."""
     if df is None or df.empty:
         return None
     
@@ -93,15 +38,16 @@ def calculate_indicators(df, ema_period):  # ema_period parametresi eklendi
         macd = ta.trend.MACD(df['Close'])
         df['MACD'] = macd.macd()
         df['MACD_Signal'] = macd.macd_signal()
-        
         return df
     except Exception as e:
         st.error(f"Göstergeler hesaplanırken hata oluştu: {str(e)}")
         return None
 
-def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
-    """Grafik oluşturma"""
+# Grafik oluşturma
+def create_chart(df, symbol, ema_period, use_ema):
+    """Kripto para grafiği oluşturma."""
     if df is None or df.empty:
+        st.warning(f"{symbol} için grafik oluşturulamadı. Veri eksik!")
         return None
     
     try:
@@ -109,81 +55,87 @@ def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
         
         # Mum grafiği
         fig.add_trace(go.Candlestick(
-            x=df.index,
+            x=df['Date'],
             open=df['Open'],
             high=df['High'],
             low=df['Low'],
             close=df['Close'],
-            name=symbol
+            name="Fiyat"
         ))
         
         # EMA
         if use_ema:
             fig.add_trace(go.Scatter(
-                x=df.index,
+                x=df['Date'],
                 y=df[f'EMA_{ema_period}'],
                 name=f'EMA {ema_period}',
-                line=dict(width=1)
+                line=dict(width=1, color='orange')
             ))
         
         fig.update_layout(
             title=f"{symbol} Teknik Analiz Grafiği",
-            yaxis_title="Fiyat (USD)",
             xaxis_title="Tarih",
+            yaxis_title="Fiyat (USD)",
             height=600,
             template="plotly_dark"
         )
-        
         return fig
     except Exception as e:
         st.error(f"Grafik oluşturulurken hata oluştu: {str(e)}")
         return None
 
-# Genişletilmiş kripto listesi
-crypto_list = [
-    # Major Cryptocurrencies
-    "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "ADA", "AVAX", "DOGE",
-    # DeFi Tokens
-    "UNI", "LINK", "AAVE", "MKR", "CRV", "SNX", "COMP", "YFI", "SUSHI", "BAL",
-    # Layer 1 & 2 Solutions
-    "MATIC", "DOT", "ATOM", "NEAR", "FTM", "ONE", "ALGO", "EGLD", "HBAR", "ETC",
-    # Exchange Tokens
-    "CRO", "FTT", "KCS", "HT", "LEO", "OKB", "GT", "BNX", "WOO", "CAKE",
-    # Gaming & Metaverse
-    "SAND", "MANA", "AXS", "GALA", "ENJ", "ILV", "THETA", "CHZ", "FLOW", "IMX",
-    # Storage & Computing
-    "FIL", "STX", "AR", "SC", "STORJ", "RLC", "GLM", "NMR", "OCEAN", "LPT",
-    # Privacy Coins
-    "XMR", "ZEC", "DASH", "SCRT", "ROSE", "KEEP", "NYM", "PRE", "PPC", "FIRO",
-    # Infrastructure
-    "GRT", "API3", "BAND", "TRB", "REN", "KP3R", "ROOK", "ANKR", "FET", "NEST",
-    # Stablecoins & Related
-    "DAI", "FRAX", "TUSD", "USDP", "RSR", "FXS", "MIM", "TRIBE", "BAG", "OUSD",
-    # Others
-    "LTC", "XLM", "VET", "LUNA", "MIOTA", "EOS", "XTZ", "NEO", "WAVES", "ZIL"
-]
+# Sayfa yapılandırması
+st.set_page_config(
+    page_title="Kripto Teknik Analiz",
+    page_icon="📊",
+    layout="wide"
+)
+
+# Başlık
+st.title("📊 Kripto Teknik Analiz Platformu")
+
+# Sidebar
+with st.sidebar:
+    st.header("🔍 Filtre Ayarları")
+    
+    # Zaman aralığı seçenekleri
+    period_options = {
+        "1 Gün": "1d", "3 Gün": "3d", "1 Hafta": "7d", "2 Hafta": "14d",
+        "1 Ay": "1mo", "3 Ay": "3mo", "6 Ay": "6mo", "1 Yıl": "1y"
+    }
+    selected_period = st.selectbox("Zaman Aralığı", list(period_options.keys()))
+    
+    # RSI filtresi
+    use_rsi = st.checkbox("RSI Filtresi", True)
+    if use_rsi:
+        rsi_lower = st.slider("RSI Alt Limit", 0, 100, 30)
+        rsi_upper = st.slider("RSI Üst Limit", 0, 100, 70)
+    
+    # EMA filtresi
+    use_ema = st.checkbox("EMA Filtresi", True)
+    ema_period = st.selectbox("EMA Periyodu", [9, 20, 50, 200]) if use_ema else 20
+    
+    # MACD filtresi
+    use_macd = st.checkbox("MACD Filtresi", True)
 
 # Ana bölüm
-st.header("Kripto Para Taraması")
+st.header("📈 Kripto Para Taraması")
+
+# Kripto listesi
+crypto_list = ["BTC", "ETH", "BNB", "XRP", "DOGE", "ADA", "SOL", "MATIC", "DOT", "LTC"]
 
 if st.button("Taramayı Başlat"):
+    st.write("🔄 Tarama başlatıldı...")
     progress_bar = st.progress(0)
-    status_text = st.empty()
-    
     filtered_cryptos = []
     
     for i, symbol in enumerate(crypto_list):
-        status_text.text(f"Taranan: {symbol}")
-        progress_bar.progress((i + 1) / len(crypto_list))
-        
         df = get_crypto_data(symbol, period_options[selected_period])
         if df is not None:
-            df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
+            df = calculate_indicators(df, ema_period)
             if df is not None:
                 last_close = df['Close'].iloc[-1]
                 last_rsi = df['RSI'].iloc[-1]
-                
-                # Filtreleme mantığı
                 meets_criteria = True
                 
                 if use_rsi:
@@ -193,46 +145,34 @@ if st.button("Taramayı Başlat"):
                     meets_criteria &= last_close > df[f'EMA_{ema_period}'].iloc[-1]
                 
                 if use_macd and meets_criteria:
-                    last_macd = df['MACD'].iloc[-1]
-                    last_signal = df['MACD_Signal'].iloc[-1]
-                    meets_criteria &= last_macd > last_signal
+                    macd_last = df['MACD'].iloc[-1]
+                    macd_signal_last = df['MACD_Signal'].iloc[-1]
+                    meets_criteria &= macd_last > macd_signal_last
                 
                 if meets_criteria:
                     filtered_cryptos.append({
-                        'Symbol': symbol,
-                        'Price': last_close,
-                        'RSI': last_rsi,
-                        '24s Değişim (%)': ((last_close - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100).round(2),
-                        'Hacim': df['Volume'].iloc[-1]
+                        "Sembol": symbol,
+                        "Fiyat (USD)": round(last_close, 2),
+                        "RSI": round(last_rsi, 2),
+                        "24 Saat Değişim (%)": round(((last_close - df['Close'].iloc[-2]) / df['Close'].iloc[-2]) * 100, 2),
+                        "Hacim": round(df['Volume'].iloc[-1])
                     })
+        progress_bar.progress((i + 1) / len(crypto_list))
     
-    status_text.text("Tarama Tamamlandı!")
-    
+    progress_bar.empty()
     if filtered_cryptos:
-        st.subheader("Filtrelenmiş Kripto Paralar")
+        st.subheader("📋 Filtrelenmiş Kripto Paralar")
         result_df = pd.DataFrame(filtered_cryptos)
         st.dataframe(result_df)
         
-        # Seçilen kripto için detaylı analiz
-        selected_crypto = st.selectbox("Detaylı Analiz için Kripto Seçin", result_df['Symbol'])
+        # Detaylı analiz
+        selected_crypto = st.selectbox("Detaylı Analiz için Kripto Seçin", result_df['Sembol'])
         if selected_crypto:
             df = get_crypto_data(selected_crypto, period_options[selected_period])
             if df is not None:
-                df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
-                if df is not None:
-                    fig = create_chart(df, selected_crypto, ema_period)  # ema_period parametresi eklendi
-                    if fig is not None:
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Metrikler
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Fiyat (USD)", f"${df['Close'].iloc[-1]:,.2f}")
-                        with col2:
-                            st.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
-                        with col3:
-                            st.metric("24s Değişim (%)", f"{((df['Close'].iloc[-1] - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100):.2f}%")
-                        with col4:
-                            st.metric("Hacim", f"{df['Volume'].iloc[-1]:,.0f}")
+                df = calculate_indicators(df, ema_period)
+                fig = create_chart(df, selected_crypto, ema_period, use_ema)
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("Filtrelere uygun kripto para bulunamadı.")
