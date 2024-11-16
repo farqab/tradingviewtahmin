@@ -11,32 +11,35 @@ from textblob import TextBlob
 from newsapi import NewsApiClient
 import tweepy
 
-# Binance WebSocket üzerinden veri çekmek için fonksiyon
-async def binance_websocket(symbol, interval):
-    url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
-
-
-    async with websockets.connect(url) as websocket:
-        while True:
-            try:
-                data = await websocket.recv()
-                message = json.loads(data)
-
-                kline = message['k']
-                kline_data = {
-                    'timestamp': pd.to_datetime(kline['t'], unit='ms'),
-                    'open': float(kline['o']),
-                    'high': float(kline['h']),
-                    'low': float(kline['l']),
-                    'close': float(kline['c']),
-                    'volume': float(kline['v']),
-                }
-                print(kline_data)
-
-                # Burada DataFrame'e ekleme veya başka işlemler yapabilirsiniz.
-            except Exception as e:
-                print(f"WebSocket error: {e}")
-                break
+def get_binance_data(symbol, interval, limit=1000):
+    """
+    Binance'den historical kline data çeker
+    """
+    url = f"https://fapi.binance.com/fapi/v1/klines"
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": limit
+    }
+    
+    try:
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        # DataFrame oluştur
+        df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume',
+                                       'close_time', 'quote_volume', 'trades', 'taker_buy_base',
+                                       'taker_buy_quote', 'ignore'])
+        
+        # Veri tiplerini düzenle
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+        for col in ['open', 'high', 'low', 'close', 'volume']:
+            df[col] = df[col].astype(float)
+            
+        return df
+    except Exception as e:
+        st.error(f"Veri çekerken hata oluştu: {e}")
+        return None
 
 def calculate_pivot_points(df, method='Classic'):
     high = df['high']
