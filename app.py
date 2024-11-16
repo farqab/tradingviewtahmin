@@ -185,9 +185,7 @@ crypto_list = [
     "LTC", "XLM", "VET", "LUNA", "MIOTA", "EOS", "XTZ", "NEO", "WAVES", "ZIL"
 ]
 
-# Ana bölüm
-st.header("Kripto Para Taraması")
-
+# Filtreleme kısmında yapılacak değişiklik
 if st.button("Taramayı Başlat"):
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -200,61 +198,30 @@ if st.button("Taramayı Başlat"):
         
         df = get_crypto_data(symbol, period_options[selected_period])
         if df is not None:
-            df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
-            if df is not None:
-                last_close = df['Close'].iloc[-1]
-                last_rsi = df['RSI'].iloc[-1]
-                
-                # Filtreleme mantığı
-                meets_criteria = True
-                
-                if use_rsi:
-                    meets_criteria &= rsi_lower <= last_rsi <= rsi_upper
-                
-                if use_ema and meets_criteria:
-                    meets_criteria &= last_close > df[f'EMA_{ema_period}'].iloc[-1]
-                
-                if use_macd and meets_criteria:
-                    last_macd = df['MACD'].iloc[-1]
-                    last_signal = df['MACD_Signal'].iloc[-1]
-                    meets_criteria &= last_macd > last_signal
+            df = calculate_indicators(df, ema_period)
+            if df is not None and len(df) > 0:
+                meets_criteria = check_filtering_criteria(
+                    df, 
+                    use_rsi, 
+                    rsi_lower, 
+                    rsi_upper, 
+                    use_ema, 
+                    use_macd
+                )
                 
                 if meets_criteria:
+                    last_close = df['Close'].iloc[-1]
+                    last_rsi = df['RSI'].iloc[-1]
+                    
                     filtered_cryptos.append({
                         'Symbol': symbol,
                         'Price': last_close,
                         'RSI': last_rsi,
+                        'RSI Trend': "Yükseliş" if df['RSI_Change'].iloc[-1] > 0 else "Düşüş",
                         '24s Değişim (%)': ((last_close - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100).round(2),
-                        'Hacim': df['Volume'].iloc[-1]
+                        'Hacim': df['Volume'].iloc[-1],
+                        'EMA Trend': "Üzerinde" if df['EMA_Trend'].iloc[-1] else "Altında",
+                        'MACD Sinyal': "Al" if df['MACD_Trend'].iloc[-1] else "Sat"
                     })
     
     status_text.text("Tarama Tamamlandı!")
-    
-    if filtered_cryptos:
-        st.subheader("Filtrelenmiş Kripto Paralar")
-        result_df = pd.DataFrame(filtered_cryptos)
-        st.dataframe(result_df)
-        
-        # Seçilen kripto için detaylı analiz
-        selected_crypto = st.selectbox("Detaylı Analiz için Kripto Seçin", result_df['Symbol'])
-        if selected_crypto:
-            df = get_crypto_data(selected_crypto, period_options[selected_period])
-            if df is not None:
-                df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
-                if df is not None:
-                    fig = create_chart(df, selected_crypto, ema_period)  # ema_period parametresi eklendi
-                    if fig is not None:
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Metrikler
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Fiyat (USD)", f"${df['Close'].iloc[-1]:,.2f}")
-                        with col2:
-                            st.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
-                        with col3:
-                            st.metric("24s Değişim (%)", f"{((df['Close'].iloc[-1] - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100):.2f}%")
-                        with col4:
-                            st.metric("Hacim", f"{df['Volume'].iloc[-1]:,.0f}")
-    else:
-        st.warning("Filtrelere uygun kripto para bulunamadı.")
