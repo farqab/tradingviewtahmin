@@ -6,21 +6,37 @@ import ta
 import time
 
 def get_binance_data(symbol, interval, limit=1000):
-    url = f"https://fapi.binance.com/fapi/v1/klines"
+    # URL'yi futures endpointi olarak değiştirelim
+    base_url = "https://fapi.binance.com"
+    endpoint = f"{base_url}/fapi/v1/klines"
+    
     params = {
-        "symbol": symbol,
+        "symbol": symbol.upper(),  # Symbol'ü büyük harfe çevirelim
         "interval": interval,
         "limit": limit
     }
     
     try:
-        response = requests.get(url, params=params)
+        # Debug için request URL'sini yazdıralım
+        st.write(f"Requesting: {endpoint}")
+        
+        response = requests.get(endpoint, params=params, timeout=10)
+        
+        # HTTP durumunu kontrol edelim
+        if response.status_code != 200:
+            st.error(f"API Hatası: Status Code {response.status_code}")
+            st.write(f"API Yanıtı: {response.text}")
+            return None
+            
         data = response.json()
         
         if not data or len(data) == 0:
             st.error(f"Veri bulunamadı: {symbol}")
             return None
             
+        # DataFrame oluşturmadan önce veriyi kontrol edelim
+        st.write(f"Alınan veri sayısı: {len(data)}")
+        
         df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume',
                                        'close_time', 'quote_volume', 'trades', 'taker_buy_base',
                                        'taker_buy_quote', 'ignore'])
@@ -28,10 +44,20 @@ def get_binance_data(symbol, interval, limit=1000):
         df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         for col in ['open', 'high', 'low', 'close', 'volume']:
             df[col] = df[col].astype(float)
+        
+        # Debug için DataFrame'in ilk birkaç satırını gösterelim
+        st.write("DataFrame örnek veri:")
+        st.write(df.head())
             
         return df
+    except requests.exceptions.RequestException as e:
+        st.error(f"Bağlantı hatası: {e}")
+        return None
+    except ValueError as e:
+        st.error(f"Veri işleme hatası: {e}")
+        return None
     except Exception as e:
-        st.error(f"Veri çekerken hata oluştu: {e}")
+        st.error(f"Beklenmeyen hata: {e}")
         return None
 
 st.title('Binance Futures Analiz Paneli')
@@ -44,14 +70,17 @@ with st.sidebar:
                           index=4)
     update_seconds = st.slider('Güncelleme Sıklığı (saniye)', 1, 60, 5)
 
-placeholder = st.empty()
+# Durum göstergesi ekleyelim
+status_container = st.empty()
 
 while True:
-    with placeholder.container():
-        df = get_binance_data(symbol, interval)
-        
-        if df is not None and not df.empty:
-            try:
+    try:
+        with st.spinner('Veri güncelleniyor...'):
+            df = get_binance_data(symbol, interval)
+            
+            if df is not None and not df.empty:
+                # Mevcut grafik ve metrikler kodu...
+                
                 # Fiyat grafiği
                 st.subheader('Fiyat Grafiği')
                 price_chart = pd.DataFrame({
@@ -101,36 +130,13 @@ while True:
                     else:
                         st.metric("BB Orta Bandına Uzaklık", "N/A")
                 
-                # İstatistikler
-                st.subheader('İstatistikler')
-                col1, col2, col3, col4 = st.columns(4)
+                # Son güncelleme zamanını göster
+                status_container.success(f"Son güncelleme: {pd.Timestamp.now().strftime('%H:%M:%S')}")
+            else:
+                status_container.warning("Veri alınamadı. Yeniden deneniyor...")
                 
-                with col1:
-                    if len(df) > 1:
-                        price_change = ((df['close'].iloc[-1] - df['close'].iloc[0]) / df['close'].iloc[0]) * 100
-                        st.metric("Fiyat Değişimi", f"{price_change:.2f}%")
-                    else:
-                        st.metric("Fiyat Değişimi", "N/A")
-                        
-                with col2:
-                    st.metric("24s Hacim", f"{df['volume'].sum():,.0f}")
-                with col3:
-                    st.metric("En Yüksek", f"{df['high'].max():,.2f}")
-                with col4:
-                    st.metric("En Düşük", f"{df['low'].min():,.2f}")
-                
-                # Son işlemler tablosu
-                st.subheader('Son İşlemler')
-                if len(df) >= 5:
-                    last_trades = df.tail(5)[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
-                    last_trades.columns = ['Zaman', 'Açılış', 'Yüksek', 'Düşük', 'Kapanış', 'Hacim']
-                    st.dataframe(last_trades)
-                else:
-                    st.write("Yeterli veri yok")
-                    
-            except Exception as e:
-                st.error(f"Veri işlenirken hata oluştu: {e}")
-        else:
-            st.warning("Veri çekilemedi veya boş veri geldi. Lütfen trading pair'i kontrol edin.")
-
+        time.sleep(update_seconds)
+        
+    except Exception as e:
+        status_container.error(f"Hata oluştu: {e}")
         time.sleep(update_seconds)
