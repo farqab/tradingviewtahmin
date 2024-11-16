@@ -6,8 +6,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import requests
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+from sklearn.linear_model import LinearRegression
 
 # Sayfa düzeni
 st.set_page_config(page_title="Kripto Analiz Platformu", layout="wide")
@@ -40,31 +39,25 @@ def fetch_crypto_data():
     df = pd.DataFrame(data)
     return df
 
-# Fiyat tahmini için LSTM modeli
-def create_lstm_model(data):
+# Basit fiyat tahmini için fonksiyon
+def predict_price(prices, days=1):
     scaler = MinMaxScaler()
-    scaled_data = scaler.fit_transform(data.reshape(-1, 1))
+    scaled_prices = scaler.fit_transform(prices.reshape(-1, 1))
     
     # Veri hazırlama
-    X, y = [], []
-    for i in range(60, len(scaled_data)):
-        X.append(scaled_data[i-60:i, 0])
-        y.append(scaled_data[i, 0])
-    X, y = np.array(X), np.array(y)
-    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+    X = np.array(range(len(prices))).reshape(-1, 1)
+    y = scaled_prices
     
-    # Model oluşturma
-    model = Sequential([
-        LSTM(50, return_sequences=True, input_shape=(60, 1)),
-        LSTM(50, return_sequences=False),
-        Dense(25),
-        Dense(1)
-    ])
+    # Model eğitimi
+    model = LinearRegression()
+    model.fit(X, y)
     
-    model.compile(optimizer='adam', loss='mean_squared_error')
-    model.fit(X, y, batch_size=32, epochs=20, verbose=0)
+    # Tahmin
+    future_X = np.array(range(len(prices), len(prices) + days)).reshape(-1, 1)
+    future_scaled = model.predict(future_X)
+    future_prices = scaler.inverse_transform(future_scaled)
     
-    return model, scaler
+    return future_prices[0][0]
 
 # Ana veri çekme ve işleme
 try:
@@ -105,19 +98,10 @@ try:
                          yaxis_title="Fiyat ($)")
         st.plotly_chart(fig, use_container_width=True)
         
-        # LSTM ile fiyat tahmini
-        if len(coin_data) > 60:  # Minimum veri gereksinimi
+        # Fiyat tahmini
+        if len(coin_data) > 30:  # Minimum veri gereksinimi
             prices = coin_data['Close'].values
-            model, scaler = create_lstm_model(prices)
-            
-            # Gelecek tahmin
-            last_60_days = prices[-60:]
-            scaled_data = scaler.transform(last_60_days.reshape(-1, 1))
-            X_test = np.array([scaled_data])
-            X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
-            
-            pred = model.predict(X_test)
-            pred_price = scaler.inverse_transform(pred)[0][0]
+            pred_price = predict_price(prices)
             
             st.subheader("🔮 Fiyat Tahmini")
             st.write(f"24 Saat Sonrası İçin Tahmini Fiyat: ${pred_price:.2f}")
@@ -153,6 +137,25 @@ try:
         st.subheader("🏆 En Çok İşlem Görenler")
         top_volume = filtered_df.nlargest(5, 'volume_24h')[['symbol', 'price', 'volume_24h']]
         st.dataframe(top_volume)
+        
+        # RSI Hesaplama
+        st.subheader("📊 Teknik Göstergeler")
+        if len(coin_data) > 14:
+            delta = coin_data['Close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            current_rsi = rsi.iloc[-1]
+            
+            st.metric("RSI (14)", f"{current_rsi:.2f}")
+            
+            if current_rsi > 70:
+                st.warning("⚠️ Aşırı Alım Bölgesi")
+            elif current_rsi < 30:
+                st.warning("⚠️ Aşırı Satım Bölgesi")
+            else:
+                st.success("✅ Normal Bölge")
 
 except Exception as e:
     st.error(f"Veri çekerken bir hata oluştu: {str(e)}")
@@ -164,9 +167,9 @@ st.markdown("### 📚 Kullanım Kılavuzu")
 st.markdown("""
 - Sol menüden zaman dilimi ve filtreleme seçeneklerini ayarlayın
 - İstediğiniz kripto parayı seçin
-- Fiyat grafiğini inceleyin ve yapay zeka tahminlerini görün
-- Piyasa özetini ve popüler coinleri takip edin
+- Fiyat grafiğini inceleyin ve tahminleri görün
+- Piyasa özetini ve teknik göstergeleri takip edin
 """)
 
 # Güvenlik uyarısı
-st.warning("⚠️ Bu uygulama sadece bilgilendirme amaçlıdır. Yatırım tavsiyesi değildir.")
+st.warning("⚠️ Bu uygulama sadece bilgilendirme amaçlıdir. Yatırım tavsiyesi değildir.")
