@@ -5,6 +5,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import yfinance as yf
 from datetime import datetime, timedelta
+import requests
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -14,26 +15,43 @@ st.set_page_config(page_title="Yatırım Portföyü Oluşturucu", layout="wide")
 # Ana başlık
 st.title("Kişisel Yatırım Portföyü Oluşturucu")
 
-# Borsa verilerini çekme fonksiyonu
+# Borsa verilerini çekme fonksiyonu - Geliştirilmiş hata yönetimi
 @st.cache_data(ttl=3600)  # 1 saat cache
 def get_stock_data(ticker, period='1y'):
     try:
-        stock = yf.Ticker(ticker)
-        hist = stock.history(period=period)
-        return hist, stock.info
+        # BIST hisseleri için özel kontrol
+        if ticker.endswith('.IS'):
+            # Önce basic veriyi kontrol et
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=period)
+            if hist.empty:
+                # Alternatif ticker dene
+                alternative_ticker = ticker.replace('.IS', '.TI')
+                stock = yf.Ticker(alternative_ticker)
+                hist = stock.history(period=period)
+            
+            if not hist.empty:
+                return hist, stock.info
+            else:
+                st.warning(f"{ticker} için veri çekilemedi. Lütfen daha sonra tekrar deneyin.")
+                return None, None
+        else:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=period)
+            return hist, stock.info
     except Exception as e:
-        st.error(f"Veri çekilirken hata oluştu: {e}")
+        st.warning(f"{ticker} için veri çekilirken hata oluştu. Alternatif kaynak deneniyor...")
         return None, None
 
-# BIST ve global endeksleri tanımlama
+# BIST ve global endeksleri tanımlama - Alternatif tickerlar eklendi
 INDICES = {
-    'BIST 100': '^XU100.IS',
+    'BIST 100': 'XU100.IS',  # Alternatif: 'XU100.TI'
     'S&P 500': '^GSPC',
     'NASDAQ': '^IXIC',
     'DAX': '^GDAXI'
 }
 
-# Popüler Türk hisseleri - Genişletilmiş liste
+# Popüler Türk hisseleri - Alternatif formatlar eklendi
 TURKISH_STOCKS = {
     'Garanti Bankası': 'GARAN.IS',
     'Koç Holding': 'KCHOL.IS',
@@ -51,6 +69,50 @@ TURKISH_STOCKS = {
     'Petkim': 'PETKM.IS',
     'BİM': 'BIMAS.IS'
 }
+
+# Veri olmadığında kullanılacak dummy veri oluşturma fonksiyonu
+def create_dummy_data(ticker, period='1y'):
+    end_date = datetime.now()
+    
+    if period == '1y':
+        start_date = end_date - timedelta(days=365)
+    elif period == '1mo':
+        start_date = end_date - timedelta(days=30)
+    elif period == '5d':
+        start_date = end_date - timedelta(days=5)
+    else:
+        start_date = end_date - timedelta(days=365)
+    
+    date_range = pd.date_range(start=start_date, end=end_date, freq='D')
+    
+    # Rastgele fiyat hareketi oluştur
+    np.random.seed(42)  # Tekrarlanabilirlik için
+    prices = np.random.randn(len(date_range)).cumsum() + 100
+    
+    df = pd.DataFrame({
+        'Open': prices + np.random.randn(len(date_range)),
+        'High': prices + abs(np.random.randn(len(date_range))),
+        'Low': prices - abs(np.random.randn(len(date_range))),
+        'Close': prices,
+        'Volume': np.random.randint(1000000, 10000000, size=len(date_range))
+    }, index=date_range)
+    
+    return df
+
+# Veri çekme fonksiyonunu güncelle
+def get_market_data(ticker, period='1y'):
+    data, info = get_stock_data(ticker, period)
+    
+    if data is None:
+        st.warning(f"{ticker} için gerçek veri alınamadı. Gösterim amaçlı örnek veri kullanılıyor.")
+        data = create_dummy_data(ticker, period)
+        info = {
+            'shortName': ticker,
+            'regularMarketPrice': data['Close'].iloc[-1],
+            'regularMarketPreviousClose': data['Close'].iloc[-2]
+        }
+    
+    return data, info
 
 # Yan panel - Kullanıcı bilgileri
 with st.sidebar:
