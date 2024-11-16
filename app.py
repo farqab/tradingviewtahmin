@@ -1,238 +1,262 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import yfinance as yf
-import ta
-from datetime import datetime, timedelta
+import plotly.express as px
 import plotly.graph_objects as go
+import yfinance as yf
+from datetime import datetime, timedelta
+import warnings
+warnings.filterwarnings('ignore')
 
-# Cache fonksiyonu ekleyelim
-@st.cache_data(ttl=300)  # 5 dakika cache
-def get_crypto_data(symbol, period):
-    """Kripto para verilerini çekme fonksiyonu"""
-    try:
-        ticker = yf.Ticker(f"{symbol}-USD")
-        data = ticker.history(period=period)
-        return data if not data.empty else None
-    except Exception as e:
-        st.error(f"Veri çekilirken hata oluştu: {str(e)}")
-        return None
-
-# Sayfanın genel ayarlarını yapılandırma
-st.set_page_config(
-    page_title="Kripto Tarayıcı",
-    page_icon="📊",
-    layout="wide"
-)
+# Sayfa yapılandırması
+st.set_page_config(page_title="Yatırım Portföyü Oluşturucu", layout="wide")
 
 # Ana başlık
-st.title("📊 Kripto Para Teknik Analiz Platformu")
+st.title("Kişisel Yatırım Portföyü Oluşturucu")
 
-# Sidebar oluşturma
-with st.sidebar:
-    st.header("Filtre Ayarları")
-    
-    # Genişletilmiş zaman aralığı seçimi
-    # period_options kısmını değiştiriyoruz
-    period_options = {
-    # Dakikalık
-    "1 Dakika": "1m",
-    "5 Dakika": "5m",
-    "15 Dakika": "15m",
-    "30 Dakika": "30m",
-    # Saatlik
-    "1 Saat": "1h",
-    "2 Saat": "2h",
-    "4 Saat": "4h",
-    "6 Saat": "6h",
-    "12 Saat": "12h",
-    # Günlük ve üzeri
-    "1 Gün": "1d",
-    "3 Gün": "3d",
-    "1 Hafta": "7d",
-    "2 Hafta": "14d",
-    "1 Ay": "1mo",
-    "3 Ay": "3mo",
-    "6 Ay": "6mo",
-    "1 Yıl": "1y"
+# Borsa verilerini çekme fonksiyonu
+@st.cache_data(ttl=3600)  # 1 saat cache
+def get_stock_data(ticker, period='1y'):
+    try:
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=period)
+        return hist
+    except Exception as e:
+        st.error(f"Veri çekilirken hata oluştu: {e}")
+        return None
+
+# BIST ve global endeksleri tanımlama
+INDICES = {
+    'BIST 100': '^XU100.IS',
+    'S&P 500': '^GSPC',
+    'NASDAQ': '^IXIC',
+    'DAX': '^GDAXI'
 }
-    selected_period = st.selectbox("Zaman Aralığı", list(period_options.keys()))
 
-    # Teknik gösterge filtreleri
-    st.subheader("Teknik Göstergeler")
+# Popüler Türk hisseleri
+TURKISH_STOCKS = {
+    'Garanti Bankası': 'GARAN.IS',
+    'Koç Holding': 'KCHOL.IS',
+    'Ereğli Demir Çelik': 'EREGL.IS',
+    'Türk Hava Yolları': 'THYAO.IS',
+    'Aselsan': 'ASELS.IS'
+}
 
-    # RSI ayarları
-    use_rsi = st.checkbox("RSI Filtresi", True)
-    if use_rsi:
-        rsi_lower = st.slider("RSI Alt Limit", 0, 100, 30)
-        rsi_upper = st.slider("RSI Üst Limit", 0, 100, 70)
+# Yan panel - Kullanıcı bilgileri
+with st.sidebar:
+    st.header("Kişisel Bilgiler")
+    
+    # Yatırım tutarı
+    yatirim_tutari = st.number_input(
+        "Toplam Yatırım Tutarı (TL)",
+        min_value=1000,
+        value=100000
+    )
+    
+    # Risk toleransı
+    risk_toleransi = st.slider(
+        "Risk Toleransı",
+        min_value=1,
+        max_value=10,
+        value=5,
+        help="1: En düşük risk, 10: En yüksek risk"
+    )
+    
+    # Yatırım vadesi
+    yatirim_vadesi = st.selectbox(
+        "Yatırım Vadesi",
+        options=["Kısa Vade (0-2 yıl)", "Orta Vade (2-5 yıl)", "Uzun Vade (5+ yıl)"]
+    )
+    
+    # Yatırım hedefi
+    yatirim_hedefi = st.selectbox(
+        "Yatırım Hedefi",
+        options=["Sermaye Koruma", "Dengeli Büyüme", "Agresif Büyüme"]
+    )
 
-    # EMA ayarları
-    use_ema = st.checkbox("EMA Filtresi", True)
-    if use_ema:
-        ema_period = st.selectbox("EMA Periyodu", [9, 20, 50, 200], index=1)
+# Portföy oluşturma fonksiyonu
+def portfoy_olustur(risk_toleransi, yatirim_vadesi, yatirim_hedefi):
+    if risk_toleransi <= 3:
+        hisse_orani = 0.2
+        tahvil_orani = 0.5
+        altin_orani = 0.2
+        nakit_orani = 0.1
+    elif risk_toleransi <= 7:
+        hisse_orani = 0.4
+        tahvil_orani = 0.3
+        altin_orani = 0.2
+        nakit_orani = 0.1
     else:
-        ema_period = 20  # Varsayılan değer
-
-    # MACD ayarları
-    use_macd = st.checkbox("MACD Filtresi", True)
-
-def calculate_indicators(df, ema_period):  # ema_period parametresi eklendi
-    """Teknik göstergeleri hesaplama"""
-    if df is None or df.empty:
-        return None
+        hisse_orani = 0.6
+        tahvil_orani = 0.2
+        altin_orani = 0.15
+        nakit_orani = 0.05
     
-    try:
-        # RSI
-        df['RSI'] = ta.momentum.RSIIndicator(df['Close'], window=14).rsi()
-        
-        # EMA
-        df[f'EMA_{ema_period}'] = ta.trend.EMAIndicator(df['Close'], window=ema_period).ema_indicator()
-        
-        # MACD
-        macd = ta.trend.MACD(df['Close'])
-        df['MACD'] = macd.macd()
-        df['MACD_Signal'] = macd.macd_signal()
-        
-        return df
-    except Exception as e:
-        st.error(f"Göstergeler hesaplanırken hata oluştu: {str(e)}")
-        return None
+    if yatirim_vadesi == "Kısa Vade (0-2 yıl)":
+        hisse_orani *= 0.7
+        tahvil_orani *= 1.2
+        nakit_orani *= 1.5
+    elif yatirim_vadesi == "Uzun Vade (5+ yıl)":
+        hisse_orani *= 1.2
+        tahvil_orani *= 0.8
+        nakit_orani *= 0.5
+    
+    if yatirim_hedefi == "Sermaye Koruma":
+        hisse_orani *= 0.8
+        tahvil_orani *= 1.2
+    elif yatirim_hedefi == "Agresif Büyüme":
+        hisse_orani *= 1.2
+        tahvil_orani *= 0.8
+    
+    toplam = hisse_orani + tahvil_orani + altin_orani + nakit_orani
+    hisse_orani /= toplam
+    tahvil_orani /= toplam
+    altin_orani /= toplam
+    nakit_orani /= toplam
+    
+    return {
+        "Hisse Senetleri": hisse_orani,
+        "Tahvil/Bono": tahvil_orani,
+        "Altın": altin_orani,
+        "Nakit": nakit_orani
+    }
 
-def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
-    """Grafik oluşturma"""
-    if df is None or df.empty:
-        return None
-    
-    try:
-        fig = go.Figure()
-        
-        # Mum grafiği
-        fig.add_trace(go.Candlestick(
-            x=df.index,
-            open=df['Open'],
-            high=df['High'],
-            low=df['Low'],
-            close=df['Close'],
-            name=symbol
-        ))
-        
-        # EMA
-        if use_ema:
-            fig.add_trace(go.Scatter(
-                x=df.index,
-                y=df[f'EMA_{ema_period}'],
-                name=f'EMA {ema_period}',
-                line=dict(width=1)
-            ))
-        
-        fig.update_layout(
-            title=f"{symbol} Teknik Analiz Grafiği",
-            yaxis_title="Fiyat (USD)",
-            xaxis_title="Tarih",
-            height=600,
-            template="plotly_dark"
-        )
-        
-        return fig
-    except Exception as e:
-        st.error(f"Grafik oluşturulurken hata oluştu: {str(e)}")
-        return None
+# Ana panel - Piyasa Durumu
+st.header("Güncel Piyasa Durumu")
+col_market1, col_market2 = st.columns(2)
 
-# Genişletilmiş kripto listesi
-crypto_list = [
-    # Major Cryptocurrencies
-    "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "ADA", "AVAX", "DOGE",
-    # DeFi Tokens
-    "UNI", "LINK", "AAVE", "MKR", "CRV", "SNX", "COMP", "YFI", "SUSHI", "BAL",
-    # Layer 1 & 2 Solutions
-    "MATIC", "DOT", "ATOM", "NEAR", "FTM", "ONE", "ALGO", "EGLD", "HBAR", "ETC",
-    # Exchange Tokens
-    "CRO", "FTT", "KCS", "HT", "LEO", "OKB", "GT", "BNX", "WOO", "CAKE",
-    # Gaming & Metaverse
-    "SAND", "MANA", "AXS", "GALA", "ENJ", "ILV", "THETA", "CHZ", "FLOW", "IMX",
-    # Storage & Computing
-    "FIL", "STX", "AR", "SC", "STORJ", "RLC", "GLM", "NMR", "OCEAN", "LPT",
-    # Privacy Coins
-    "XMR", "ZEC", "DASH", "SCRT", "ROSE", "KEEP", "NYM", "PRE", "PPC", "FIRO",
-    # Infrastructure
-    "GRT", "API3", "BAND", "TRB", "REN", "KP3R", "ROOK", "ANKR", "FET", "NEST",
-    # Stablecoins & Related
-    "DAI", "FRAX", "TUSD", "USDP", "RSR", "FXS", "MIM", "TRIBE", "BAG", "OUSD",
-    # Others
-    "LTC", "XLM", "VET", "LUNA", "MIOTA", "EOS", "XTZ", "NEO", "WAVES", "ZIL"
-]
+with col_market1:
+    st.subheader("Önemli Endeksler")
+    for name, ticker in INDICES.items():
+        data = get_stock_data(ticker, '5d')
+        if data is not None:
+            son_fiyat = data['Close'][-1]
+            degisim = ((son_fiyat - data['Close'][-2]) / data['Close'][-2]) * 100
+            col1, col2 = st.columns([2, 1])
+            col1.metric(name, f"{son_fiyat:,.2f}", f"{degisim:+.2f}%")
 
-# Ana bölüm
-st.header("Kripto Para Taraması")
+with col_market2:
+    st.subheader("Popüler Türk Hisseleri")
+    for name, ticker in TURKISH_STOCKS.items():
+        data = get_stock_data(ticker, '5d')
+        if data is not None:
+            son_fiyat = data['Close'][-1]
+            degisim = ((son_fiyat - data['Close'][-2]) / data['Close'][-2]) * 100
+            col1, col2 = st.columns([2, 1])
+            col1.metric(name, f"{son_fiyat:,.2f} TL", f"{degisim:+.2f}%")
 
-if st.button("Taramayı Başlat"):
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+# Portföy Analizi
+st.header("Önerilen Portföy Dağılımı")
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    # Portföy hesaplama
+    portfoy = portfoy_olustur(risk_toleransi, yatirim_vadesi, yatirim_hedefi)
     
-    filtered_cryptos = []
+    # Pasta grafiği
+    fig = go.Figure(data=[go.Pie(
+        labels=list(portfoy.keys()),
+        values=list(portfoy.values()),
+        hole=.3
+    )])
+    fig.update_layout(
+        title="Varlık Dağılımı",
+        showlegend=True,
+        height=400
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+with col2:
+    st.subheader("Portföy Detayları")
     
-    for i, symbol in enumerate(crypto_list):
-        status_text.text(f"Taranan: {symbol}")
-        progress_bar.progress((i + 1) / len(crypto_list))
-        
-        df = get_crypto_data(symbol, period_options[selected_period])
-        if df is not None:
-            df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
-            if df is not None:
-                last_close = df['Close'].iloc[-1]
-                last_rsi = df['RSI'].iloc[-1]
-                
-                # Filtreleme mantığı
-                meets_criteria = True
-                
-                if use_rsi:
-                    meets_criteria &= rsi_lower <= last_rsi <= rsi_upper
-                
-                if use_ema and meets_criteria:
-                    meets_criteria &= last_close > df[f'EMA_{ema_period}'].iloc[-1]
-                
-                if use_macd and meets_criteria:
-                    last_macd = df['MACD'].iloc[-1]
-                    last_signal = df['MACD_Signal'].iloc[-1]
-                    meets_criteria &= last_macd > last_signal
-                
-                if meets_criteria:
-                    filtered_cryptos.append({
-                        'Symbol': symbol,
-                        'Price': last_close,
-                        'RSI': last_rsi,
-                        '24s Değişim (%)': ((last_close - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100).round(2),
-                        'Hacim': df['Volume'].iloc[-1]
-                    })
+    # Detaylı dağılım tablosu
+    df_portfoy = pd.DataFrame({
+        'Varlık Sınıfı': portfoy.keys(),
+        'Oran (%)': [f"{v*100:.1f}%" for v in portfoy.values()],
+        'Tutar (TL)': [f"{v*yatirim_tutari:,.0f} TL" for v in portfoy.values()]
+    })
+    st.dataframe(df_portfoy, hide_index=True)
     
-    status_text.text("Tarama Tamamlandı!")
+    # Beklenen getiri ve risk hesaplama
+    beklenen_getiri = risk_toleransi * 2
+    max_kayip = risk_toleransi * 3
     
-    if filtered_cryptos:
-        st.subheader("Filtrelenmiş Kripto Paralar")
-        result_df = pd.DataFrame(filtered_cryptos)
-        st.dataframe(result_df)
-        
-        # Seçilen kripto için detaylı analiz
-        selected_crypto = st.selectbox("Detaylı Analiz için Kripto Seçin", result_df['Symbol'])
-        if selected_crypto:
-            df = get_crypto_data(selected_crypto, period_options[selected_period])
-            if df is not None:
-                df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
-                if df is not None:
-                    fig = create_chart(df, selected_crypto, ema_period)  # ema_period parametresi eklendi
-                    if fig is not None:
-                        st.plotly_chart(fig, use_container_width=True)
-                        
-                        # Metrikler
-                        col1, col2, col3, col4 = st.columns(4)
-                        with col1:
-                            st.metric("Fiyat (USD)", f"${df['Close'].iloc[-1]:,.2f}")
-                        with col2:
-                            st.metric("RSI", f"{df['RSI'].iloc[-1]:.2f}")
-                        with col3:
-                            st.metric("24s Değişim (%)", f"{((df['Close'].iloc[-1] - df['Close'].iloc[-2]) / df['Close'].iloc[-2] * 100):.2f}%")
-                        with col4:
-                            st.metric("Hacim", f"{df['Volume'].iloc[-1]:,.0f}")
-    else:
-        st.warning("Filtrelere uygun kripto para bulunamadı.")
+    st.markdown("### Beklenen Performans")
+    st.write(f"Yıllık Beklenen Getiri: ~%{beklenen_getiri}")
+    st.write(f"Maximum Kayıp Riski: -%{max_kayip}")
+
+# Piyasa Analizi
+st.header("Detaylı Piyasa Analizi")
+secili_endeks = st.selectbox("Analiz edilecek endeks/hisse seçin:", 
+                            options=list(INDICES.keys()) + list(TURKISH_STOCKS.keys()))
+
+if secili_endeks in INDICES:
+    ticker = INDICES[secili_endeks]
+else:
+    ticker = TURKISH_STOCKS[secili_endeks]
+
+period = st.select_slider(
+    "Analiz Periyodu",
+    options=['1mo', '3mo', '6mo', '1y', '2y', '5y'],
+    value='1y'
+)
+
+data = get_stock_data(ticker, period)
+
+if data is not None:
+    # Fiyat grafiği
+    fig = go.Figure(data=[go.Candlestick(x=data.index,
+                open=data['Open'],
+                high=data['High'],
+                low=data['Low'],
+                close=data['Close'])])
+    
+    fig.update_layout(
+        title=f"{secili_endeks} Fiyat Grafiği",
+        yaxis_title="Fiyat",
+        xaxis_title="Tarih",
+        height=500
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Temel istatistikler
+    col_stat1, col_stat2, col_stat3 = st.columns(3)
+    
+    with col_stat1:
+        st.metric("Günlük Değişim (%)", 
+                 f"{((data['Close'][-1] - data['Close'][-2]) / data['Close'][-2] * 100):.2f}%")
+    
+    with col_stat2:
+        st.metric("30 Günlük Volatilite", 
+                 f"{(data['Close'].pct_change().std() * np.sqrt(252) * 100):.2f}%")
+    
+    with col_stat3:
+        st.metric("İşlem Hacmi (Son)", 
+                 f"{data['Volume'][-1]:,.0f}")
+
+# Öneriler ve uyarılar
+st.markdown("---")
+st.header("Öneriler ve Dikkat Edilmesi Gerekenler")
+
+with st.expander("Portföy Çeşitlendirme Önerileri"):
+    st.write("""
+    - Portföyünüzü düzenli olarak gözden geçirin ve rebalancing yapın
+    - Tek bir varlık sınıfına aşırı yoğunlaşmaktan kaçının
+    - Yatırım kararlarınızı verirken piyasa koşullarını da değerlendirin
+    - Acil durum fonu oluşturmayı unutmayın
+    - Farklı sektörlerden hisseler seçerek riski dağıtın
+    - Global piyasalardaki gelişmeleri takip edin
+    """)
+
+with st.expander("Risk Uyarıları"):
+    st.write("""
+    - Geçmiş performans, gelecekteki performansın garantisi değildir
+    - Yatırım yaparken risk-getiri dengesini gözetin
+    - Portföy dağılımınızı kişisel finansal hedeflerinize göre ayarlayın
+    - Yatırım kararlarınızı vermeden önce profesyonel danışmanlık alabilirsiniz
+    - Piyasa koşulları sürekli değişebilir, güncel kalmaya özen gösterin
+    """)
+
+# Son güncelleme bilgisi
+st.markdown("---")
+st.caption(f"Son güncelleme: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
