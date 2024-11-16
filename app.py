@@ -18,7 +18,7 @@ api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
 
 # Binance Client Global için TLD ayarı
 try:
-    client = Client(API_KEY, API_SECRET, tld="com")
+    client = Client(api_key,api_secret, tld="com")
 except Exception as e:
     st.error(f"Binance Client oluşturulurken hata: {e}")
     st.stop()
