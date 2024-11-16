@@ -27,7 +27,7 @@ except Exception as e:
 # Fetch data function
 async def get_binance_data(session, symbol, interval, limit=100):
     url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
-        try:
+    try:
         url = "https://fapi.binance.com/fapi/v1/exchangeInfo"  # Global Binance URL
         response = requests.get(url, timeout=10)  # 10 saniyelik timeout
         response.raise_for_status()  # HTTP hatalarını kontrol et
