@@ -129,7 +129,29 @@ def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
         st.error(f"Grafik oluşturulurken hata oluştu: {str(e)}")
         return None
 
-# Kripto listesi (değişmedi)...
+# Genişletilmiş kripto listesi
+crypto_list = [
+    # Major Cryptocurrencies
+    "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "ADA", "AVAX", "DOGE",
+    # DeFi Tokens
+    "UNI", "LINK", "AAVE", "MKR", "CRV", "SNX", "COMP", "YFI", "SUSHI", "BAL",
+    # Layer 1 & 2 Solutions
+    "MATIC", "DOT", "ATOM", "NEAR", "FTM", "ONE", "ALGO", "EGLD", "HBAR", "ETC",
+    # Exchange Tokens
+    "CRO", "FTT", "KCS", "HT", "LEO", "OKB", "GT", "BNX", "WOO", "CAKE",
+    # Gaming & Metaverse
+    "SAND", "MANA", "AXS", "GALA", "ENJ", "ILV", "THETA", "CHZ", "FLOW", "IMX",
+    # Storage & Computing
+    "FIL", "STX", "AR", "SC", "STORJ", "RLC", "GLM", "NMR", "OCEAN", "LPT",
+    # Privacy Coins
+    "XMR", "ZEC", "DASH", "SCRT", "ROSE", "KEEP", "NYM", "PRE", "PPC", "FIRO",
+    # Infrastructure
+    "GRT", "API3", "BAND", "TRB", "REN", "KP3R", "ROOK", "ANKR", "FET", "NEST",
+    # Stablecoins & Related
+    "DAI", "FRAX", "TUSD", "USDP", "RSR", "FXS", "MIM", "TRIBE", "BAG", "OUSD",
+    # Others
+    "LTC", "XLM", "VET", "LUNA", "MIOTA", "EOS", "XTZ", "NEO", "WAVES", "ZIL"
+]
 
 # Ana bölüm
 st.header("Kripto Para Taraması")
