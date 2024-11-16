@@ -11,28 +11,32 @@ from textblob import TextBlob
 from newsapi import NewsApiClient
 import tweepy
 
+# Binance WebSocket üzerinden veri çekmek için fonksiyon
+async def binance_websocket(symbol, interval):
+    url = f"wss://fstream.binance.com/ws/{symbol.lower()}@kline_{interval}"
 
-# Binance API anahtarlarınızı girin
-api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
-api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
+    async with websockets.connect(url) as websocket:
+        while True:
+            try:
+                data = await websocket.recv()
+                message = json.loads(data)
 
-# Binance.US endpoint
-client = Client(api_key, api_secret, tld='us')
+                kline = message['k']
+                kline_data = {
+                    'timestamp': pd.to_datetime(kline['t'], unit='ms'),
+                    'open': float(kline['o']),
+                    'high': float(kline['h']),
+                    'low': float(kline['l']),
+                    'close': float(kline['c']),
+                    'volume': float(kline['v']),
+                }
+                print(kline_data)
 
-# Fetch data function
-async def get_binance_data(session, symbol, interval, limit=100):
-    url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
-    try:
-        async with session.get(url) as response:
-            data = await response.json()
-            df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_av', 'trades', 'tb_base_av', 'tb_quote_av', 'ignore'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
-            df[['close', 'open', 'high', 'low', 'volume']] = df[['close', 'open', 'high', 'low', 'volume']].astype(float)
-            return df
-    except Exception as e:
-        st.error(f"Error fetching data for {symbol}: {e}")
-        return None
+                # Burada DataFrame'e ekleme veya başka işlemler yapabilirsiniz.
+            except Exception as e:
+                print(f"WebSocket error: {e}")
+                break
+
 def calculate_pivot_points(df, method='Classic'):
     high = df['high']
     low = df['low']
