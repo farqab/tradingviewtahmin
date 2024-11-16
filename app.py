@@ -16,27 +16,23 @@ import tweepy
 api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
 api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
 
-# Binance Client Global için TLD ayarı
-try:
-    client = Client(api_key,api_secret, tld="com")
-except Exception as e:
-    st.error(f"Binance Client oluşturulurken hata: {e}")
-    st.stop()
-
+# Binance.US endpoint
+client = Client(api_key, api_secret, tld='us')
 
 # Fetch data function
 async def get_binance_data(session, symbol, interval, limit=100):
     url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
     try:
-        url = "https://fapi.binance.com/fapi/v1/exchangeInfo"  # Global Binance URL
-        response = requests.get(url, timeout=10)  # 10 saniyelik timeout
-        response.raise_for_status()  # HTTP hatalarını kontrol et
-        data = response.json()
-        symbols = [s['symbol'] for s in data['symbols'] if 'USDT' in s['symbol']]
-        return symbols
-    except requests.exceptions.RequestException as e:
-        st.error(f"Futures sembolleri alınırken hata: {e}")
-        return []
+        async with session.get(url) as response:
+            data = await response.json()
+            df = pd.DataFrame(data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume', 'close_time', 'quote_av', 'trades', 'tb_base_av', 'tb_quote_av', 'ignore'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+            df.set_index('timestamp', inplace=True)
+            df[['close', 'open', 'high', 'low', 'volume']] = df[['close', 'open', 'high', 'low', 'volume']].astype(float)
+            return df
+    except Exception as e:
+        st.error(f"Error fetching data for {symbol}: {e}")
+        return None
 def calculate_pivot_points(df, method='Classic'):
     high = df['high']
     low = df['low']
