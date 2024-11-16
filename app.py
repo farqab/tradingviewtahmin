@@ -27,16 +27,16 @@ except Exception as e:
 # Fetch data function
 async def get_binance_data(session, symbol, interval, limit=100):
     url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
-       try:
-            url = "https://fapi.binance.com/fapi/v1/exchangeInfo"  # Global Binance URL
-            response = requests.get(url, timeout=10)  # 10 saniyelik timeout
-            response.raise_for_status()  # HTTP hatalarını kontrol et
-            data = response.json()
-            symbols = [s['symbol'] for s in data['symbols'] if 'USDT' in s['symbol']]
-            return symbols
-        except requests.exceptions.RequestException as e:
-            st.error(f"Futures sembolleri alınırken hata: {e}")
-            return []
+        try:
+        url = "https://fapi.binance.com/fapi/v1/exchangeInfo"  # Global Binance URL
+        response = requests.get(url, timeout=10)  # 10 saniyelik timeout
+        response.raise_for_status()  # HTTP hatalarını kontrol et
+        data = response.json()
+        symbols = [s['symbol'] for s in data['symbols'] if 'USDT' in s['symbol']]
+        return symbols
+    except requests.exceptions.RequestException as e:
+        st.error(f"Futures sembolleri alınırken hata: {e}")
+        return []
 def calculate_pivot_points(df, method='Classic'):
     high = df['high']
     low = df['low']
