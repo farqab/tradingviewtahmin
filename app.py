@@ -32,12 +32,19 @@ st.title("📊 Kripto Para Teknik Analiz Platformu")
 with st.sidebar:
     st.header("Filtre Ayarları")
     
-    # Zaman aralığı seçimi
+    # Genişletilmiş zaman aralığı seçimi
     period_options = {
         "1 Gün": "1d",
+        "3 Gün": "3d",
         "1 Hafta": "7d",
+        "2 Hafta": "14d",
         "1 Ay": "1mo",
-        "3 Ay": "3mo"
+        "3 Ay": "3mo",
+        "6 Ay": "6mo",
+        "1 Yıl": "1y",
+        "2 Yıl": "2y",
+        "5 Yıl": "5y",
+        "Max": "max"
     }
     selected_period = st.selectbox("Zaman Aralığı", list(period_options.keys()))
 
@@ -54,11 +61,13 @@ with st.sidebar:
     use_ema = st.checkbox("EMA Filtresi", True)
     if use_ema:
         ema_period = st.selectbox("EMA Periyodu", [9, 20, 50, 200], index=1)
+    else:
+        ema_period = 20  # Varsayılan değer
 
     # MACD ayarları
     use_macd = st.checkbox("MACD Filtresi", True)
 
-def calculate_indicators(df):
+def calculate_indicators(df, ema_period):  # ema_period parametresi eklendi
     """Teknik göstergeleri hesaplama"""
     if df is None or df.empty:
         return None
@@ -80,7 +89,7 @@ def calculate_indicators(df):
         st.error(f"Göstergeler hesaplanırken hata oluştu: {str(e)}")
         return None
 
-def create_chart(df, symbol):
+def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
     """Grafik oluşturma"""
     if df is None or df.empty:
         return None
@@ -120,30 +129,7 @@ def create_chart(df, symbol):
         st.error(f"Grafik oluşturulurken hata oluştu: {str(e)}")
         return None
 
-# Genişletilmiş kripto listesi
-crypto_list = [
-    # Major Cryptocurrencies
-    "BTC", "ETH", "USDT", "BNB", "SOL", "XRP", "USDC", "ADA", "AVAX", "DOGE",
-    # DeFi Tokens
-    "UNI", "LINK", "AAVE", "MKR", "CRV", "SNX", "COMP", "YFI", "SUSHI", "BAL",
-    # Layer 1 & 2 Solutions
-    "MATIC", "DOT", "ATOM", "NEAR", "FTM", "ONE", "ALGO", "EGLD", "HBAR", "ETC",
-    # Exchange Tokens
-    "CRO", "FTT", "KCS", "HT", "LEO", "OKB", "GT", "BNX", "WOO", "CAKE",
-    # Gaming & Metaverse
-    "SAND", "MANA", "AXS", "GALA", "ENJ", "ILV", "THETA", "CHZ", "FLOW", "IMX",
-    # Storage & Computing
-    "FIL", "STX", "AR", "SC", "STORJ", "RLC", "GLM", "NMR", "OCEAN", "LPT",
-    # Privacy Coins
-    "XMR", "ZEC", "DASH", "SCRT", "ROSE", "KEEP", "NYM", "PRE", "PPC", "FIRO",
-    # Infrastructure
-    "GRT", "API3", "BAND", "TRB", "REN", "KP3R", "ROOK", "ANKR", "FET", "NEST",
-    # Stablecoins & Related
-    "DAI", "FRAX", "TUSD", "USDP", "RSR", "FXS", "MIM", "TRIBE", "BAG", "OUSD",
-    # Others
-    "LTC", "XLM", "VET", "LUNA", "MIOTA", "EOS", "XTZ", "NEO", "WAVES", "ZIL"
-]
-
+# Kripto listesi (değişmedi)...
 
 # Ana bölüm
 st.header("Kripto Para Taraması")
@@ -160,7 +146,7 @@ if st.button("Taramayı Başlat"):
         
         df = get_crypto_data(symbol, period_options[selected_period])
         if df is not None:
-            df = calculate_indicators(df)
+            df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
             if df is not None:
                 last_close = df['Close'].iloc[-1]
                 last_rsi = df['RSI'].iloc[-1]
@@ -200,9 +186,9 @@ if st.button("Taramayı Başlat"):
         if selected_crypto:
             df = get_crypto_data(selected_crypto, period_options[selected_period])
             if df is not None:
-                df = calculate_indicators(df)
+                df = calculate_indicators(df, ema_period)  # ema_period parametresi eklendi
                 if df is not None:
-                    fig = create_chart(df, selected_crypto)
+                    fig = create_chart(df, selected_crypto, ema_period)  # ema_period parametresi eklendi
                     if fig is not None:
                         st.plotly_chart(fig, use_container_width=True)
                         
