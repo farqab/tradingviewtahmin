@@ -13,7 +13,8 @@ import tweepy
 
 # Binance WebSocket üzerinden veri çekmek için fonksiyon
 async def binance_websocket(symbol, interval):
-    url = f"wss://fstream.binance.com/ws/{symbol.lower()}@kline_{interval}"
+    url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
+
 
     async with websockets.connect(url) as websocket:
         while True:
