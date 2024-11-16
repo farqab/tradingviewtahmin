@@ -5,3 +5,4 @@ Pillow==10.0.1
 textblob==0.17.1
 newsapi-python==0.2.6
 tweepy==4.14.0
+websocket-client==1.5.1  # WebSocket bağlantısı için gerekli kütüphane
