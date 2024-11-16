@@ -17,7 +17,7 @@ api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
 api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
 
 # Binance.US endpoint
-client = Client(api_key, api_secret, tld='tr')
+client = Client(api_key, api_secret, tld='us')
 
 # Fetch data function
 async def get_binance_data(session, symbol, interval, limit=100):
