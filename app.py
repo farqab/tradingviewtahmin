@@ -577,39 +577,6 @@ with st.expander("Risk Yönetimi Detayları"):
     - İdeal 1:4 ve üzeri
     """)
 
+# Son güncelleme bilgisi
+st.markdown("---")
 st.caption(f"Son güncelleme: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-
-
-# Tam ekran modunu etkinleştir
-st.set_page_config(
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
-
-# Streamlit'in varsayılan elementlerini gizle
-hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            header {visibility: hidden;}
-            .stApp {
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-            }
-            iframe {
-                position: fixed;
-                left: 0;
-                bottom: 0;
-                right: 0;
-                width: 100vw;
-                height: 100vh;
-                border: none;
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-                z-index: 999999;
-            }
-            </style>
-            """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
