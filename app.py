@@ -33,19 +33,29 @@ with st.sidebar:
     st.header("Filtre Ayarları")
     
     # Genişletilmiş zaman aralığı seçimi
-    period_options = {
-        "1 Gün": "1d",
-        "3 Gün": "3d",
-        "1 Hafta": "7d",
-        "2 Hafta": "14d",
-        "1 Ay": "1mo",
-        "3 Ay": "3mo",
-        "6 Ay": "6mo",
-        "1 Yıl": "1y",
-        "2 Yıl": "2y",
-        "5 Yıl": "5y",
-        "Max": "max"
-    }
+    # period_options kısmını değiştiriyoruz
+period_options = {
+    # Dakikalık
+    "1 Dakika": "1m",
+    "5 Dakika": "5m",
+    "15 Dakika": "15m",
+    "30 Dakika": "30m",
+    # Saatlik
+    "1 Saat": "1h",
+    "2 Saat": "2h",
+    "4 Saat": "4h",
+    "6 Saat": "6h",
+    "12 Saat": "12h",
+    # Günlük ve üzeri
+    "1 Gün": "1d",
+    "3 Gün": "3d",
+    "1 Hafta": "7d",
+    "2 Hafta": "14d",
+    "1 Ay": "1mo",
+    "3 Ay": "3mo",
+    "6 Ay": "6mo",
+    "1 Yıl": "1y"
+}
     selected_period = st.selectbox("Zaman Aralığı", list(period_options.keys()))
 
     # Teknik gösterge filtreleri
