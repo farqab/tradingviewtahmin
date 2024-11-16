@@ -12,8 +12,9 @@ from newsapi import NewsApiClient
 import tweepy
 
 
-api_key = os.getenv('API_KEY')
-api_secret = os.getenv('API_SECRET')
+# Binance API anahtarlarınızı girin
+api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
+api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
 
 client = Client(api_key, api_secret)
 
@@ -600,4 +601,3 @@ if st.button("Start Analysis"):
             st.write(result_df)
         else:
             st.write("No signals found from the analysis.")
-
