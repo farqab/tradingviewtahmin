@@ -6,80 +6,25 @@ import ta
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 
-# Cache fonksiyonu ekleyelim
-@st.cache_data(ttl=300)  # 5 dakika cache
+@st.cache_data(ttl=300)
 def get_crypto_data(symbol, period):
     """Kripto para verilerini çekme fonksiyonu"""
     try:
         ticker = yf.Ticker(f"{symbol}-USD")
         data = ticker.history(period=period)
-        return data if not data.empty else None
+        if data.empty:
+            return None
+        # Son candleın tamamlanmamış olma ihtimaline karşı kontrol
+        if (datetime.now() - data.index[-1]).seconds < 3600:  # Son mum 1 saatten yeniyse
+            data = data[:-1]  # Son mumu çıkar
+        return data
     except Exception as e:
-        st.error(f"Veri çekilirken hata oluştu: {str(e)}")
+        st.error(f"Veri çekilirken hata oluştu ({symbol}): {str(e)}")
         return None
 
-# Sayfanın genel ayarlarını yapılandırma
-st.set_page_config(
-    page_title="Kripto Tarayıcı",
-    page_icon="📊",
-    layout="wide"
-)
-
-# Ana başlık
-st.title("📊 Kripto Para Teknik Analiz Platformu")
-
-# Sidebar oluşturma
-with st.sidebar:
-    st.header("Filtre Ayarları")
-    
-    # Genişletilmiş zaman aralığı seçimi
-    # period_options kısmını değiştiriyoruz
-    period_options = {
-    # Dakikalık
-    "1 Dakika": "1m",
-    "5 Dakika": "5m",
-    "15 Dakika": "15m",
-    "30 Dakika": "30m",
-    # Saatlik
-    "1 Saat": "1h",
-    "2 Saat": "2h",
-    "4 Saat": "4h",
-    "6 Saat": "6h",
-    "12 Saat": "12h",
-    # Günlük ve üzeri
-    "1 Gün": "1d",
-    "3 Gün": "3d",
-    "1 Hafta": "7d",
-    "2 Hafta": "14d",
-    "1 Ay": "1mo",
-    "3 Ay": "3mo",
-    "6 Ay": "6mo",
-    "1 Yıl": "1y"
-}
-    selected_period = st.selectbox("Zaman Aralığı", list(period_options.keys()))
-
-    # Teknik gösterge filtreleri
-    st.subheader("Teknik Göstergeler")
-
-    # RSI ayarları
-    use_rsi = st.checkbox("RSI Filtresi", True)
-    if use_rsi:
-        rsi_lower = st.slider("RSI Alt Limit", 0, 100, 30)
-        rsi_upper = st.slider("RSI Üst Limit", 0, 100, 70)
-
-    # EMA ayarları
-    use_ema = st.checkbox("EMA Filtresi", True)
-    if use_ema:
-        ema_period = st.selectbox("EMA Periyodu", [9, 20, 50, 200], index=1)
-    else:
-        ema_period = 20  # Varsayılan değer
-
-    # MACD ayarları
-    use_macd = st.checkbox("MACD Filtresi", True)
-
-def calculate_indicators(df, ema_period):  # ema_period parametresi eklendi
+def calculate_indicators(df, ema_period):
     """Teknik göstergeleri hesaplama"""
-    if df is None or df.empty:
+    if df is None or df.empty or len(df) < 50:  # Minimum veri noktası kontrolü
         return None
     
     try:
@@ -90,17 +35,72 @@ def calculate_indicators(df, ema_period):  # ema_period parametresi eklendi
         df[f'EMA_{ema_period}'] = ta.trend.EMAIndicator(df['Close'], window=ema_period).ema_indicator()
         
         # MACD
-        macd = ta.trend.MACD(df['Close'])
+        macd = ta.trend.MACD(df['Close'], 
+                            window_slow=26,
+                            window_fast=12, 
+                            window_sign=9)
         df['MACD'] = macd.macd()
         df['MACD_Signal'] = macd.macd_signal()
+        df['MACD_Hist'] = macd.macd_diff()  # MACD Histogramı
+        
+        # Trend belirleyiciler
+        df['EMA_Trend'] = df['Close'] > df[f'EMA_{ema_period}']
+        df['MACD_Trend'] = df['MACD'] > df['MACD_Signal']
+        
+        # Son n periyottaki RSI değişimi
+        n = 3  # Son 3 periyot
+        if len(df) >= n:
+            df['RSI_Change'] = df['RSI'].diff(n)
         
         return df
     except Exception as e:
         st.error(f"Göstergeler hesaplanırken hata oluştu: {str(e)}")
         return None
 
-def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
-    """Grafik oluşturma"""
+def check_filtering_criteria(df, use_rsi, rsi_lower, rsi_upper, use_ema, use_macd):
+    """Geliştirilmiş filtreleme kriterleri kontrolü"""
+    if df is None or df.empty:
+        return False
+    
+    try:
+        last_idx = -1
+        meets_criteria = True
+        
+        if use_rsi:
+            current_rsi = df['RSI'].iloc[last_idx]
+            rsi_change = df['RSI_Change'].iloc[last_idx]
+            
+            # RSI koşulları
+            if rsi_lower <= current_rsi <= rsi_upper:
+                # Aşırı alım/satım bölgelerinde trend teyidi
+                if current_rsi < 30 and rsi_change > 0:  # Aşırı satım + yukarı dönüş
+                    meets_criteria &= True
+                elif current_rsi > 70 and rsi_change < 0:  # Aşırı alım + aşağı dönüş
+                    meets_criteria &= False
+                else:
+                    meets_criteria &= True
+            else:
+                meets_criteria = False
+        
+        if use_ema and meets_criteria:
+            # Son 3 mumdaki EMA trendi kontrol
+            recent_ema_trend = df['EMA_Trend'].iloc[-3:].all()
+            meets_criteria &= recent_ema_trend
+        
+        if use_macd and meets_criteria:
+            # MACD sinyali ve trend kontrolü
+            recent_macd_cross = (df['MACD_Hist'].iloc[-2] < 0 and df['MACD_Hist'].iloc[-1] > 0)
+            recent_macd_trend = df['MACD_Trend'].iloc[-3:].all()
+            meets_criteria &= (recent_macd_cross or recent_macd_trend)
+        
+        return meets_criteria
+    
+    except Exception as e:
+        st.error(f"Filtreleme kriterleri kontrol edilirken hata oluştu: {str(e)}")
+        return False
+
+def create_chart(df, symbol, ema_period):
+    """Geliştirilmiş grafik oluşturma"""
     if df is None or df.empty:
         return None
     
@@ -118,19 +118,41 @@ def create_chart(df, symbol, ema_period):  # ema_period parametresi eklendi
         ))
         
         # EMA
-        if use_ema:
+        if 'EMA_' + str(ema_period) in df.columns:
             fig.add_trace(go.Scatter(
                 x=df.index,
                 y=df[f'EMA_{ema_period}'],
                 name=f'EMA {ema_period}',
-                line=dict(width=1)
+                line=dict(color='orange', width=1)
+            ))
+        
+        # MACD sinyalleri
+        if 'MACD' in df.columns and 'MACD_Signal' in df.columns:
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['MACD'],
+                name='MACD',
+                line=dict(color='blue', width=1),
+                yaxis="y2"
+            ))
+            fig.add_trace(go.Scatter(
+                x=df.index,
+                y=df['MACD_Signal'],
+                name='Signal',
+                line=dict(color='red', width=1),
+                yaxis="y2"
             ))
         
         fig.update_layout(
             title=f"{symbol} Teknik Analiz Grafiği",
             yaxis_title="Fiyat (USD)",
+            yaxis2=dict(
+                title="MACD",
+                overlaying="y",
+                side="right"
+            ),
             xaxis_title="Tarih",
-            height=600,
+            height=800,
             template="plotly_dark"
         )
         
