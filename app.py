@@ -17,11 +17,11 @@ api_key = '2cQLCcQB3XCXNasp5VCt3n5qe5GeSw7F3S2aUhJJPzjfUiQLyX9xtpwCt10O57AP'
 api_secret = 'lMkmtovUAwTJpTon919pAtxubvffWJE1ZKxNpiWRKY1NL3zo1J8k1jn6KLYqzRla'
 
 # Binance.US endpoint
-client = Client(api_key, api_secret, tld='com')
+client = Client(api_key, api_secret, tld='us')
 
 # Fetch data function
 async def get_binance_data(session, symbol, interval, limit=100):
-    url = f'https://fapi.binance.com/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
+    url = f'https://fapi.binance.us/fapi/v1/klines?symbol={symbol}&interval={interval}&limit={limit}'
     try:
         async with session.get(url) as response:
             data = await response.json()
